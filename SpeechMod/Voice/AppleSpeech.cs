@@ -75,7 +75,7 @@ public class AppleSpeech : ISpeech
 
 	public string[] GetAvailableVoices()
 	{
-		var arguments = "say -v '?' | awk '{\\$3=\\\"\\\"; printf \\\"%s;\\\", \\$1\\\"#\\\"\\$2}' | rev | cut -c 2- | rev";
+		var arguments = "say -v '?' | awk '{ lang=\\\"\\\"; idx=0; for (i=1; i<=NF; i++) if (\\$i ~ /^[a-z]{2}_[A-Z0-9]{2,3}$/) { lang=\\$i; idx=i; break } if (lang!=\\\"\\\") { name=\\$1; for (j=2; j<idx; j++) name=name\\\" \\\" \\$j; sub(/[[:space:]]+$/,\\\"\\\",name); print name \\\"#\\\" lang } }' | sort -u | paste -sd ';' -";
 		var process = new Process
 		{
 			StartInfo = new ProcessStartInfo
