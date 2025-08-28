@@ -71,20 +71,20 @@ public class AppleVoiceUnity : MonoBehaviour
             {
                 var argumentsPart = text.Substring(0, position);
                 text = text.Substring(position);
-                arguments = $"{arguments}say -v  {GenderVoice} -r {GenderRate} {argumentsPart.Replace("\"", "")};";
+                arguments = $"{arguments}say -v \\\"{GenderVoice}\\\" -r {GenderRate} {argumentsPart.Replace("\"", "")};";
             }
             else
             {
                 position = text.IndexOf("</color>", StringComparison.InvariantCultureIgnoreCase);
                 var argumentsPart2 = text.Substring(0, position);
                 text = text.Substring(position);
-                arguments = $"{arguments}say -v {Main.NarratorVoice} -r {Main.Settings.NarratorRate} {argumentsPart2.Replace("\"", "")};";
+                arguments = $"{arguments}say -v \\\"{Main.NarratorVoice}\\\" -r {Main.Settings.NarratorRate} {argumentsPart2.Replace("\"", "")};";
             }
         }
 
         text = text.Replace("\"", "");
         if (!string.IsNullOrWhiteSpace(text) && text != "</color>")
-            arguments = $"{arguments}say -v {GenderVoice} -r {GenderRate} {text};";
+            arguments = $"{arguments}say -v \\\"{GenderVoice}\\\" -r {GenderRate} {text};";
 
         arguments = new Regex("<[^>]+>").Replace(arguments, "");
 
