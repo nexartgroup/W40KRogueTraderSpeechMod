@@ -1,5 +1,8 @@
-﻿using SpeechMod.Unity;
+﻿using Kingmaker;
+using Kingmaker.Blueprints.Base;
+using SpeechMod.Unity;
 using System;
+using System.Linq;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 
@@ -7,33 +10,125 @@ namespace SpeechMod.Voice;
 
 public class AppleSpeech : ISpeech
 {
-	public bool IsSpeaking()
+    private static string SpeakBegin => "";
+    private static string SpeakEnd => "";
+
+    private static string NarratorVoice => $"<voice required=\"Name={Main.NarratorVoice}\">";
+    private static string NarratorPitch => $"<pitch absmiddle=\"{Main.Settings?.NarratorPitch}\"/>";
+    private static string NarratorRate => $"<rate absspeed=\"{Main.Settings?.NarratorRate}\"/>";
+    private static string NarratorVolume => $"<volume level=\"{Main.Settings?.NarratorVolume}\"/>";
+
+    private static string FemaleVoice => $"<voice required=\"Name={Main.FemaleVoice}\">";
+    private static string FemaleVolume => $"<volume level=\"{Main.Settings?.FemaleVolume}\"/>";
+    private static string FemalePitch => $"<pitch absmiddle=\"{Main.Settings?.FemalePitch}\"/>";
+    private static string FemaleRate => $"<rate absspeed=\"{Main.Settings?.FemaleRate}\"/>";
+
+    private static string MaleVoice => $"<voice required=\"Name={Main.MaleVoice}\">";
+    private static string MaleVolume => $"<volume level=\"{Main.Settings?.MaleVolume}\"/>";
+    private static string MalePitch => $"<pitch absmiddle=\"{Main.Settings?.MalePitch}\"/>";
+    private static string MaleRate => $"<rate absspeed=\"{Main.Settings?.MaleRate}\"/>";
+
+    public string CombinedNarratorVoiceStart => $"{NarratorVoice}";
+    public string CombinedFemaleVoiceStart => $"{FemaleVoice}";
+    public string CombinedMaleVoiceStart => $"{MaleVoice}";
+
+    public virtual string CombinedDialogVoiceStart
+    {
+        get
+        {
+            if (Game.Instance?.DialogController?.CurrentSpeaker == null)
+                return CombinedNarratorVoiceStart;
+
+            return Game.Instance.DialogController.CurrentSpeaker.Gender switch
+            {
+                Gender.Female => CombinedFemaleVoiceStart,
+                Gender.Male => CombinedMaleVoiceStart,
+                _ => CombinedNarratorVoiceStart
+            };
+        }
+    }
+
+    public static int Length(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return 0;
+
+        var arr = new[] { "—", "-", "\"" };
+
+        return arr.Aggregate(text, (current, t) => current.Replace(t, "")).Length;
+    }
+
+    private string FormatGenderSpecificVoices(string text)
+    {
+        text = text.Replace($"<i><color=#{Constants.NARRATOR_COLOR_CODE}>", "");
+        text = text.Replace("</color></i>", "");
+        return text;
+    }
+
+    private void SpeakInternal(string text, float delay = 0f)
+    {
+        text = SpeakBegin + text + SpeakEnd;
+        if (Main.Settings?.LogVoicedLines == true)
+            UnityEngine.Debug.Log(text);
+        AppleVoiceUnity.Speak(text, delay);
+    }
+
+    public bool IsSpeaking()
+    {
+        return false;
+    }
+
+    public void SpeakPreview(string text, VoiceType voiceType)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            Main.Logger?.Warning("No text to speak!");
+            return;
+        }
+
+        text = text.PrepareText();
+        text = new Regex("<[^>]+>").Replace(text, "");
+
+        SpeakAs(text, voiceType);
+    }
+
+    public string PrepareSpeechText(string text)
+    {
+        text = new Regex("<[^>]+>").Replace(text, "");
+        text = text.PrepareText();
+        return text;
+    }
+
+    public string PrepareDialogText(string text)
+    {
+        text = text.PrepareText();
+        text = new Regex("<b><color[^>]+><link([^>]+)?>([^<>]*)</link></color></b>").Replace(text, "$2");
+		// text = FormatGenderSpecificVoices(text);
+        return text;
+    }
+
+    public void SpeakDialog(string text, float delay = 0f)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            Main.Logger?.Warning("No text to speak!");
+            return;
+        }
+
+        if (!Main.Settings.UseGenderSpecificVoices)
+        {
+            Speak(text, delay);
+            return;
+        }
+
+        text = PrepareDialogText(text);
+
+        SpeakInternal(text, delay);
+    }
+
+    public void SpeakAs(string text, VoiceType voiceType, float delay = 0f)
 	{
-		return false;
-	}
-
-	public void SpeakPreview(string text, VoiceType type)
-	{
-		if (string.IsNullOrEmpty(text))
-		{
-			Main.Logger?.Warning("No text to speak!");
-			return;
-		}
-
-		text = type switch
-		{
-			VoiceType.Narrator => $"-v \"{Main.Settings?.NarratorVoice}\" -r {Main.Settings?.NarratorRate} {text.Replace("\"", "")}",
-			VoiceType.Female => $"-v \"{Main.Settings?.FemaleVoice}\" -r {Main.Settings?.FemaleRate} {text.Replace("\"", "")}",
-			VoiceType.Male => $"-v \"{Main.Settings?.MaleVoice}\" -r {Main.Settings?.MaleRate} {text.Replace("\"", "")}",
-			_ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
-		};
-
-		AppleVoiceUnity.Speak(text);
-	}
-
-	public void SpeakDialog(string text, float delay = 0f)
-	{
-		if (string.IsNullOrEmpty(text))
+		if (string.IsNullOrWhiteSpace(text))
 		{
 			Main.Logger?.Warning("No text to speak!");
 			return;
@@ -45,65 +140,55 @@ public class AppleSpeech : ISpeech
 			return;
 		}
 
-		text = text.PrepareText();
-		AppleVoiceUnity.SpeakDialog(text, delay);
-	}
+		// strip embedded quotes from the spoken text to avoid breaking the format
+		var sanitized = text.Replace("\"", "");
 
-	public void SpeakAs(string text, VoiceType type, float delay = 0)
-	{
-		throw new NotImplementedException();
-	}
-
-	public void Speak(string text, float delay)
-	{
-		if (string.IsNullOrEmpty(text))
+		// Build "voice" "text"
+		string formatted;
+		switch (voiceType)
 		{
-			Main.Logger?.Warning("No text to speak!");
-			return;
+			case VoiceType.Narrator:
+				formatted = $"\"{Main.NarratorVoice}\" \"{sanitized}\"";
+				break;
+
+			case VoiceType.Female:
+				formatted = $"\"{Main.FemaleVoice}\" \"{sanitized}\"";
+				break;
+
+			case VoiceType.Male:
+				formatted = $"\"{Main.MaleVoice}\" \"{sanitized}\"";
+				break;
+
+			default:
+				throw new ArgumentOutOfRangeException(nameof(voiceType), voiceType, null);
 		}
-
-		text = text.PrepareText();
-		text = new Regex("<[^>]+>").Replace(text, "");
-		text = $"-v \"{Main.NarratorVoice}\" -r {Main.Settings.NarratorRate} {text.Replace("\"", "")}";
-		AppleVoiceUnity.Speak(text, delay);
+		Process.Start(Unity.AppleVoiceUnity.GetScriptPath(), formatted);
 	}
+    public void Speak(string text, float delay = 0f)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            Main.Logger?.Warning("No text to speak!");
+            return;
+        }
 
-	public void Stop()
-	{
-		AppleVoiceUnity.Stop();
-	}
+        text = PrepareSpeechText(text);
 
-	public string[] GetAvailableVoices()
-	{
-		var arguments = "say -v '?' | awk '{ lang=\\\"\\\"; idx=0; for (i=1; i<=NF; i++) if (\\$i ~ /^[a-z]{2}_[A-Z0-9]{2,3}$/) { lang=\\$i; idx=i; break } if (lang!=\\\"\\\") { name=\\$1; for (j=2; j<idx; j++) name=name\\\" \\\" \\$j; sub(/[[:space:]]+$/,\\\"\\\",name); print name \\\"#\\\" lang } }' | sort -u | paste -sd ';' -";
-		var process = new Process
-		{
-			StartInfo = new ProcessStartInfo
-			{
-				FileName = "/bin/bash",
-				Arguments = "-c \"" + arguments + "\"",
-				UseShellExecute = false,
-				RedirectStandardOutput = true,
-				RedirectStandardError = true,
-				CreateNoWindow = true
-			}
-		};
+        SpeakInternal(text, delay);
+    }
 
-		process.Start();
-		var error = process.StandardError.ReadToEnd();
-		if (!string.IsNullOrWhiteSpace(error))
-			Main.Logger.Error(error);
-		var text = process.StandardOutput.ReadToEnd();
-		process.WaitForExit();
-		process.Dispose();
+    public void Stop()
+    {
+        AppleVoiceUnity.Stop();
+    }
 
-		return !string.IsNullOrWhiteSpace(text)
-			? text.Split([";"], StringSplitOptions.RemoveEmptyEntries)
-			: null;
-	}
+    public string[] GetAvailableVoices()
+    {
+        return AppleVoiceUnity.GetAvailableVoices();
+    }
 
-	public string GetStatusMessage()
-	{
-		return "AppleSpeech ready!";
-	}
+    public string GetStatusMessage()
+    {
+        return AppleVoiceUnity.GetStatusMessage();
+    }
 }
