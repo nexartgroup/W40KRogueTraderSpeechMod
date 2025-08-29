@@ -5,6 +5,7 @@ using System;
 using System.Linq;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using System.Collections.Generic;
 
 namespace SpeechMod.Voice;
 
@@ -12,7 +13,15 @@ public class AppleSpeech : ISpeech
 {
     private static string SpeakBegin => "";
     private static string SpeakEnd => "";
-
+    
+    private static string SpeakerVoice => Game.Instance?.DialogController?.CurrentSpeaker?.Gender == Gender.Female ? Main.FemaleVoice : Main.MaleVoice;
+    private static string SpeakerGender =>
+    Game.Instance?.DialogController?.CurrentSpeaker?.Gender switch
+    {
+        Gender.Female => "Female",
+        Gender.Male => "Male",
+        _ => "Narrator"
+    };
     private static string NarratorVoice => $"<voice required=\"Name={Main.NarratorVoice}\">";
     private static string NarratorPitch => $"<pitch absmiddle=\"{Main.Settings?.NarratorPitch}\"/>";
     private static string NarratorRate => $"<rate absspeed=\"{Main.Settings?.NarratorRate}\"/>";
@@ -103,10 +112,62 @@ public class AppleSpeech : ISpeech
     {
         text = text.PrepareText();
         text = new Regex("<b><color[^>]+><link([^>]+)?>([^<>]*)</link></color></b>").Replace(text, "$2");
+		text = Regex.Replace(text, @"</?[^>]+>", "");
 		// text = FormatGenderSpecificVoices(text);
-        return text;
+		return text;
     }
+    public static List<string[]> BuildSpeakList(string input)
+    {
+        string narratorVoice = Main.NarratorVoice;
+        string defaultVoice = SpeakerVoice;
+        var res = new List<string[]>();
+        if (string.IsNullOrWhiteSpace(input)) return res;
 
+        // Helfer: Tags entfernen + Whitespaces normalisieren
+        string Clean(string s) =>
+            Regex.Replace(Regex.Replace(s ?? "", "<[^>]+>", ""), @"\s+", " ").Trim();
+
+        // <i>…</i>-Blöcke (Erzähler)
+        var iTagRegex = new Regex(@"(?is)<i>(.*?)</i>");
+        var matches = iTagRegex.Matches(input);
+
+        // Zitate im freien Text (Dialog) finden
+        void AddQuotes(string chunk)
+        {
+            if (string.IsNullOrEmpty(chunk)) return;
+            foreach (Match m in Regex.Matches(chunk, "(?:\"([^\"]+)\")|(?:„([^“]+)“)", RegexOptions.Singleline))
+            {
+                var quoted = m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
+                quoted = Clean(quoted);
+                if (quoted.Length > 0)
+                    res.Add(new[] { quoted, defaultVoice });
+            }
+        }
+
+        int pos = 0;
+        foreach (Match m in matches)
+        {
+            // 1) Teil vor dem <i>-Block → nur Dialog in Anführungszeichen
+            var outside = input.Substring(pos, m.Index - pos);
+            AddQuotes(outside);
+
+            // 2) Inhalt des <i>-Blocks → Erzähler (Tags entfernen)
+            var narrator = Clean(m.Groups[1].Value);
+            if (narrator.Length > 0)
+                res.Add(new[] { narrator, narratorVoice });
+
+            pos = m.Index + m.Length;
+        }
+
+        // 3) Rest nach letztem <i>-Block
+        if (pos < input.Length)
+        {
+            var tail = input.Substring(pos);
+            AddQuotes(tail);
+        }
+
+        return res;
+    }
     public void SpeakDialog(string text, float delay = 0f)
     {
         if (string.IsNullOrEmpty(text))
@@ -120,10 +181,27 @@ public class AppleSpeech : ISpeech
             Speak(text, delay);
             return;
         }
-
-        text = PrepareDialogText(text);
-
-        SpeakInternal(text, delay);
+        var list = BuildSpeakList(text);
+        foreach (var entry in list)
+        {
+            string text2;
+            string str;
+            text2 = PrepareDialogText(entry[0]);
+            str = Unity.AppleVoiceUnity.GetScriptPath().Replace(" ", "\\ ") + " " + entry[1] + " " + "'" + text2 + "'";
+            Process process = new Process();
+            process.StartInfo = new ProcessStartInfo
+            {
+                FileName = "/bin/bash",
+                Arguments = "-c \"" + str + "\"",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            process.Start();
+            process.WaitForExit();
+            process.Dispose();
+        }
     }
 
     public void SpeakAs(string text, VoiceType voiceType, float delay = 0f)

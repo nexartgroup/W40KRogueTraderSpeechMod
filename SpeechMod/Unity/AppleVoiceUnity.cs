@@ -69,13 +69,14 @@ public class AppleVoiceUnity : MonoBehaviour
             return;
         }
         AppleVoiceUnity.Stop();
-        Main.Logger.Warning(text);
         text = Main.NarratorVoice + " " + text;
         Process.Start(GetScriptPath(), text);
     }
 
-    public static void SpeakDialog(string text, float delay = 0f)
+    public static void SpeakDialog(string text, float delay = 0f, string gender = "")
     {
+        Main.Logger.Log($"SpeakerGender: {gender}");
+        Main.Logger.Log($"SpeakDialog: {text}");
         if (!IsVoiceInitialized())
             return;
 

@@ -23,7 +23,6 @@ public static class PhoneticDictionary
         if (s_PhoneticDictionary == null || !s_PhoneticDictionary.Any())
             LoadDictionary();
 
-        text = text.ToLower();
         text = text.Replace("\"", "");
         text = text.Replace("\r\n", ". ");
         text = text.Replace("\n", ". ");
