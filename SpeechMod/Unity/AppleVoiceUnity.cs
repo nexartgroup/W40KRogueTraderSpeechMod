@@ -24,7 +24,7 @@ public class AppleVoiceUnity : MonoBehaviour
         // Preferred: UMM gives you the mod's folder.
         string modDir = ModEntry?.Path;
         if (!string.IsNullOrEmpty(modDir))
-            return Path.Combine(modDir, "bin", "sirisaywrapper.sh");
+            return Path.Combine(modDir, "sh", "sirisaywrapper.sh");
 
         // Fallback: directory of this mod assembly (works even if user moves the mod folder)
         var asmLocation = Assembly.GetExecutingAssembly().Location;
@@ -32,11 +32,11 @@ public class AppleVoiceUnity : MonoBehaviour
         {
             var asmDir = Path.GetDirectoryName(asmLocation);
             if (!string.IsNullOrEmpty(asmDir))
-                return Path.Combine(asmDir, "bin", "sirisaywrapper.sh");
+                return Path.Combine(asmDir, "sh", "sirisaywrapper.sh");
         }
 
         // Last resort: current directory (unlikely correct, but avoids nulls)
-        return Path.Combine(Directory.GetCurrentDirectory(), "bin", "sirisaywrapper.sh");
+        return Path.Combine(Directory.GetCurrentDirectory(), "sh", "sirisaywrapper.sh");
     }
 
     private static bool IsVoiceInitialized()
