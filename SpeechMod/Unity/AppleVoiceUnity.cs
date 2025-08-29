@@ -36,7 +36,6 @@ public class AppleVoiceUnity : MonoBehaviour
         }
 
         // Last resort: current directory (unlikely correct, but avoids nulls)
-        //return @"/Users/mattibutenhof/sirisaywrapper.sh";
         return Path.Combine(Directory.GetCurrentDirectory(), "bin", "sirisaywrapper.sh");
     }
 
