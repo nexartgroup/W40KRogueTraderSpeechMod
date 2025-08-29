@@ -34,6 +34,9 @@
         <None Update="Localization\enGB.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <None Update="sh\sirisaywrapper.sh">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
     <!--<Target Name="Deploy" AfterTargets="Build">
         <ItemGroup>
